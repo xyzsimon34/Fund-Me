@@ -3,19 +3,31 @@ pragma solidity ^0.8.18;
 
 import {PriceConverter} from "./PriceConverter.sol";
 
+
+
+
+error NotOwner();
+
 contract FundMe{
     using PriceConverter for uint256;
 
-    uint256 public minimumUsd = 5e18;
+    uint256 public constant MINIMUM_USD = 5e18;
 
     address[] public funders;
 
     //mapping 是 Solidity 中的一種哈希表，允許將地址映射到他們所捐助的金額。
     mapping ( address => uint256 amountFunded) public addressToAmountFunded; // addressToAmountFunded 是該映射的名稱，用來記錄每個地址向合約捐助了多少。
 
+    address public immutable owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+
     function fund() public payable {
         msg.value.getConversionRate();
-        //require(getConversionRate(msg.value) >= minimumUsd,"didn't send enough ETH");
+        //require(getConversionRate(msg.value) >= MINIMUM_USD,"didn't send enough ETH");
 
         funders.push(msg.sender); // msg.sender 是一個全局變量，表示調用此函數的地址
 
@@ -26,7 +38,8 @@ contract FundMe{
     // address 是鍵（User的地址）。
     // uint256 amountFunded 是值（User捐助的 ETH 數量）。
     
-    function withdraw() public {
+    function withdraw() public onlyOwner {
+
         for(uint256 funderIndex = 0; funderIndex < funders.length; funderIndex++){
             address funder = funders[funderIndex];//取得當前資助者的地址
             addressToAmountFunded[funder] = 0;//資助我們時的$$重置為0，可以說是把錢全數取出的概念
@@ -35,7 +48,39 @@ contract FundMe{
         // reset the array
         // withdraw the funds
         funders = new address[](0);//將 funders 陣列重新初始化為一個空陣列，刪除所有原本在 funders 中的地址。這通常用於清空資助者列表，可能在完成提款操作後重置狀態。
+        
+        // transfer
+        // payable(msg.sender).transfer(address(this).balance); // address(this).balance 代表當前合約地址上的所有以太幣餘額。
+        
+        // // send
+        // bool sendSuccess = payable(msg.sender).send(address(this).balance);
+        // require(sendSuccess, "Send failed");
 
+        // call
+        (bool callSuccess, ) = payable(msg.sender).call{value:address(this).balance}("");
+        require(callSuccess,"Call failed");
+        // msg.sender = address
+        // payable(msg.sender) = payable address
+
+
+        
+    }
+
+    modifier onlyOwner() {
+        //require(msg.sender == owner , "Sender is not owner!");
+        if(msg.sender != owner){ revert NotOwner();}
+        _;
+    }
+
+    // What happens if someone sends this contract ETH without calling the fund function
+
+
+    receive() external payable {
+        fund();
+    }
+
+    fallback() external payable {
+        fund();
     }
 
    
