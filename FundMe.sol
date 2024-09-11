@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {PriceConverter} from "./PriceConverter.sol";
 
 contract FundMe{
+    using PriceConverter for uint256;
 
     uint256 public minimumUsd = 5e18;
 
@@ -13,10 +14,8 @@ contract FundMe{
     mapping ( address => uint256 amountFunded) public addressToAmountFunded; // addressToAmountFunded 是該映射的名稱，用來記錄每個地址向合約捐助了多少。
 
     function fund() public payable {
-        // Allow users to send $
-        // Have a minimum $ sent $
-        // 1. How to we send ETH to this contract？
-        require(getConversionRate(msg.value) >= minimumUsd,"didn't send enough ETH");
+        msg.value.getConversionRate();
+        //require(getConversionRate(msg.value) >= minimumUsd,"didn't send enough ETH");
 
         funders.push(msg.sender); // msg.sender 是一個全局變量，表示調用此函數的地址
 
@@ -26,35 +25,18 @@ contract FundMe{
     // 允許用戶向合約發送 ETH，並記錄每個用戶發送的金額。每當一個用戶發送資金，系統會檢查發送的 ETH 是否達到了最低美元值，並將該用戶的地址和發送金額記錄在對應的資料結構中。
     // address 是鍵（User的地址）。
     // uint256 amountFunded 是值（User捐助的 ETH 數量）。
+    
+    function withdraw() public {
+        for(uint256 funderIndex = 0; funderIndex < funders.length; funderIndex++){
+            address funder = funders[funderIndex];//取得當前資助者的地址
+            addressToAmountFunded[funder] = 0;//資助我們時的$$重置為0，可以說是把錢全數取出的概念
+        }
 
-
-
-
-    function getPrice() public view returns (uint256) {
-        // Address 0x694AA1769357215DE4FAC081bf1f309aDC325306
-        // ABI
-
-        // Chainlink ETH/USD 預言機地址
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306);
-
-        // 獲取最新價格數據
-        (,int256 price,,,) = priceFeed.latestRoundData();
-
-        // Price of ETH in terms of USD
-        // 2XXX.00000000
-
-        // 返回的價格可能是 8 位小數，所以乘以 1e10 來標準化為 18 位小數
-        return uint256( price * 1e10 );
+        // reset the array
+        // withdraw the funds
+        funders = new address[](0);//將 funders 陣列重新初始化為一個空陣列，刪除所有原本在 funders 中的地址。這通常用於清空資助者列表，可能在完成提款操作後重置狀態。
 
     }
 
-    function getConversionRate(uint _ethAmount) public view returns(uint256){
-        uint256 ethPrice = getPrice();
-        uint256 ethAmountInUsd = ( ethPrice * _ethAmount ) / 1e18;
-        return ethAmountInUsd;
-    }
-
-    function getVersion() public view returns(uint256){
-        return AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306).version();
-    }
+   
 }
